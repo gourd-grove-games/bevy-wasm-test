@@ -10,7 +10,8 @@ use bevy::{
 // Using the default 2D camera they correspond 1:1 with screen pixels.
 const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
 const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
-const PADDLE_SPEED: f32 = 500.0;
+// pixels per second
+const PADDLE_ACCEL: f32 = 1000.0;
 // How close can the paddle get to the wall
 const PADDLE_PADDING: f32 = 10.0;
 
@@ -62,6 +63,7 @@ fn main() {
             (
                 check_for_collisions,
                 apply_velocity.before(check_for_collisions),
+                check_paddle_wall_collision,
                 move_paddle
                     .before(check_for_collisions)
                     .after(apply_velocity),
@@ -72,13 +74,13 @@ fn main() {
         .run();
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 struct Paddle;
 
 #[derive(Component)]
 struct Ball;
 
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component, Deref, DerefMut, Default)]
 struct Velocity(Vec2);
 
 #[derive(Component)]
@@ -186,8 +188,8 @@ fn setup(
     commands.insert_resource(CollisionSound(ball_collision_sound));
 
     // Paddle
+    info!("Paddle y: {}", BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR);
     let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
-
     commands.spawn((
         SpriteBundle {
             transform: Transform {
@@ -201,8 +203,9 @@ fn setup(
             },
             ..default()
         },
-        Paddle,
+        Paddle::default(),
         Collider,
+        Velocity::default(),
     ));
 
     // Ball
@@ -305,10 +308,12 @@ fn setup(
 
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Paddle>>,
+    mut query: Query<(&mut Transform, &mut Velocity), With<Paddle>>,
     time_step: Res<FixedTime>,
 ) {
-    let mut paddle_transform = query.single_mut();
+    let paddle = query.single_mut();
+    let mut paddle_transform = paddle.0;
+    let mut paddle_velocity = paddle.1;
     let mut direction = 0.0;
 
     if keyboard_input.pressed(KeyCode::Left) {
@@ -318,10 +323,19 @@ fn move_paddle(
     if keyboard_input.pressed(KeyCode::Right) {
         direction += 1.0;
     }
+    // kickoff speed quickly
+    let delta = direction * PADDLE_ACCEL * time_step.period.as_secs_f32();
+    if paddle_velocity.x == 0.0 {
+        paddle_velocity.x += 250.0 * direction;
+    } else {
+        paddle_velocity.x += delta;
+    }
+    // reduce paddle velocity due to friction
+    paddle_velocity.x -= paddle_velocity.x * time_step.period.as_secs_f32();
 
     // Calculate the new horizontal paddle position based on player input
     let new_paddle_position =
-        paddle_transform.translation.x + direction * PADDLE_SPEED * time_step.period.as_secs_f32();
+        paddle_transform.translation.x + paddle_velocity.x * time_step.period.as_secs_f32();
 
     // Update the paddle position,
     // making sure it doesn't cause the paddle to leave the arena
@@ -341,6 +355,27 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<
 fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
     let mut text = query.single_mut();
     text.sections[1].value = scoreboard.score.to_string();
+}
+
+fn check_paddle_wall_collision(mut query: Query<(&mut Velocity, &mut Transform), With<Paddle>>) {
+    for (mut velocity, mut transform) in &mut query {
+        let paddle_size = transform.scale.truncate();
+        let paddle_position = transform.translation.truncate();
+        let left_boundary = LEFT_WALL + WALL_THICKNESS / 2.0 + PADDLE_PADDING;
+        let left_paddle_edge = paddle_position.x - paddle_size.x / 2.0;
+        let right_boundary = RIGHT_WALL - WALL_THICKNESS / 2.0 - PADDLE_PADDING;
+        let right_paddle_edge = paddle_position.x + paddle_size.x / 2.0;
+        if left_paddle_edge <= left_boundary {
+            info!("Paddle hit left wall, set x velocity 0");
+            velocity.x = 0.0;
+            transform.translation.x += 1.0;
+        }
+        if right_paddle_edge >= right_boundary {
+            info!("Paddle hit right wall, set x velocity 0");
+            velocity.x = 0.0;
+            transform.translation.x -= 1.0;
+        }
+    }
 }
 
 fn check_for_collisions(
