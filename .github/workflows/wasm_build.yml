@@ -37,7 +37,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git checkout --orphan web
-          rm -rf .cargo .github src target Cargo.lock Cargo.toml Justfile
+          cp -r out/* .
+          rm -rf out .cargo .github src target Cargo.lock Cargo.toml Justfile
           git add *
           git commit -m "Deploy WASM game to GitHub Pages"
           git push -u origin web --force
