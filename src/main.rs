@@ -10,7 +10,8 @@ use bevy::{
 // Using the default 2D camera they correspond 1:1 with screen pixels.
 const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
 const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
-const PADDLE_SPEED: f32 = 500.0;
+// pixels per second
+const PADDLE_ACCEL: f32 = 20.0;
 // How close can the paddle get to the wall
 const PADDLE_PADDING: f32 = 10.0;
 
@@ -72,8 +73,10 @@ fn main() {
         .run();
 }
 
-#[derive(Component)]
-struct Paddle;
+#[derive(Component, Default)]
+struct Paddle {
+    speed: f32,
+}
 
 #[derive(Component)]
 struct Ball;
@@ -201,7 +204,7 @@ fn setup(
             },
             ..default()
         },
-        Paddle,
+        Paddle::default(),
         Collider,
     ));
 
@@ -305,10 +308,12 @@ fn setup(
 
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Paddle>>,
+    mut query: Query<(&mut Transform, &mut Paddle), With<Paddle>>,
     time_step: Res<FixedTime>,
 ) {
-    let mut paddle_transform = query.single_mut();
+    let paddle = query.single_mut();
+    let mut paddle_transform = paddle.0;
+    let mut paddle = paddle.1;
     let mut direction = 0.0;
 
     if keyboard_input.pressed(KeyCode::Left) {
@@ -318,10 +323,11 @@ fn move_paddle(
     if keyboard_input.pressed(KeyCode::Right) {
         direction += 1.0;
     }
+    paddle.speed += direction * PADDLE_ACCEL * time_step.period.as_secs_f32();
 
     // Calculate the new horizontal paddle position based on player input
     let new_paddle_position =
-        paddle_transform.translation.x + direction * PADDLE_SPEED * time_step.period.as_secs_f32();
+        paddle_transform.translation.x + paddle.speed * time_step.period.as_secs_f32();
 
     // Update the paddle position,
     // making sure it doesn't cause the paddle to leave the arena
