@@ -326,10 +326,12 @@ fn move_paddle(
     // kickoff speed quickly
     let delta = direction * PADDLE_ACCEL * time_step.period.as_secs_f32();
     if paddle_velocity.x == 0.0 {
-        paddle_velocity.x += 400.0 * direction;
+        paddle_velocity.x += 250.0 * direction;
     } else {
         paddle_velocity.x += delta;
     }
+    // reduce paddle velocity due to friction
+    paddle_velocity.x -= paddle_velocity.x * time_step.period.as_secs_f32();
 
     // Calculate the new horizontal paddle position based on player input
     let new_paddle_position =
