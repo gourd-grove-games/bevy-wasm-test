@@ -28,7 +28,7 @@ jobs:
       - name: Generate files with wasm-bindgen
         run: |
           cargo install wasm-bindgen-cli
-          wasm-bindgen --out-dir ./out/ --target web ./target/wasm32-unknown-unknown/release/bevy-wasm-test.wasm
+          wasm-bindgen --out-dir ./ --target web ./target/wasm32-unknown-unknown/release/bevy-wasm-test.wasm
 
       - name: Deploy to GitHub Pages
         env:
@@ -36,10 +36,9 @@ jobs:
         run: |
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
+          rm -rf .git .github .cargo src target Cargo.toml Cargo.lock Justfile README.md
           git checkout --orphan web
           git reset --hard
-          cp index.html out/
-          cp -r assets out/
           git add .
           git commit -m "Deploy WASM game to GitHub Pages"
           git push -u origin web --force
